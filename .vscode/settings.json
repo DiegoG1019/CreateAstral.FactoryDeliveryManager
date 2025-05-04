@@ -1,0 +1,17 @@
+{
+    "Lua.diagnostics.globals": [
+        "settings",
+        "http",
+        "fs",
+        "rednet",
+        "pocket",
+        "peripheral",
+        "redstone",
+        "term",
+        "colors",
+        "keys"
+    ],
+    "Lua.workspace.library": [
+        "C:/Users/Diego/Workspace/Lua/__sunmeko_config/CC-Tweaked/library"
+    ]
+}
