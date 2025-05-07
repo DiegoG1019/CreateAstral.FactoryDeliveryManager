@@ -30,9 +30,6 @@ local lastOrderPlaced = 0
 
 FactoryInput = {}
 
-FactoryInput.ItemChecks = {}
-FactoryInput.FluidChecks = {}
-
 local orders = {}
 
 local function receiveItems()
@@ -111,22 +108,22 @@ return function(event, ...)
             end
             lastOrderPlaced = os.clock()
             
+            assert(fs.exists("inputScripts"), "inputScripts folder does not exist")
+            assert(fs.exists("inputScripts/fluidChecks"), "inputScripts/fluidChecks folder does not exist")
+            assert(fs.exists("inputScripts/itemChecks"), "inputScripts/itemChecks folder does not exist")
+
             for factoryHost, products in FactoryDelivery.FactoryInput.QueryAllFactories() do
                 for ii, item in ipairs(products.items) do
-                    for index, checker in ipairs(FactoryDelivery.FactoryInput.ItemChecks) do
-                        if type(checker) == "function" then
-                            if checker(factoryHost, item) then
-                                orders[factoryHost] = true -- We simply need to append the host, we'll ask it later what belongs to us and what doesn't
-                            end
+                    for index, checkerScript in ipairs(fs.list("inputScripts/itemChecks")) do
+                        if loadfile(checkerScript)(factoryHost, item) then
+                            orders[factoryHost] = true -- We simply need to append the host, we'll ask it later what belongs to us and what doesn't
                         end
                     end
                 end
                 for ii, fluid in ipairs(products.fluids) do
-                    for index, checker in ipairs(FactoryDelivery.FactoryInput.FluidChecks) do
-                        if type(checker) == "function" then
-                            if checker(factoryHost, fluid) then
-                                orders[factoryHost] = true -- We simply need to append the host, we'll ask it later what belongs to us and what doesn't
-                            end
+                    for index, checkerScript in ipairs(fs.list("inputScripts/fluidChecks")) do
+                        if loadfile(checkerScript)(factoryHost, fluid) then
+                            orders[factoryHost] = true -- We simply need to append the host, we'll ask it later what belongs to us and what doesn't
                         end
                     end
                 end

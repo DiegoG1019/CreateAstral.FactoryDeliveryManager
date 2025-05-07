@@ -1,4 +1,4 @@
-local menus = {}
+--[[local menus = {}
 
 print("Initializing UI Module")
 
@@ -25,4 +25,4 @@ local frame = basalt.getMainFrame()
 
 return {
     
-}
+}]]
