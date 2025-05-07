@@ -13,5 +13,8 @@
     ],
     "Lua.workspace.library": [
         "C:/Users/Diego/Workspace/Lua/__sunmeko_config/CC-Tweaked/library"
+    ],
+    "Lua.diagnostics.disable": [
+        "trailing-space"
     ]
 }

@@ -172,26 +172,31 @@ local function loadModules()
   print("Loading Modules")
   local moduleInfo = {}
   
+  table.insert(moduleInfo, { require 'modules.astralnet' })
   table.insert(moduleInfo, { require 'modules.factory_output' })
+  table.insert(moduleInfo, { require 'modules.factory_input' })
   table.insert(moduleInfo, { require 'modules.ui' })
   
   local awaitingInit = {}
   
   for i,v in ipairs(moduleInfo) do
     
-    local moduleFunc, moduleInitFunc = v[1], v[2]
-    
-    if type(moduleFunc) == "table" then
-      moduleInitFunc = moduleFunc[2]
-      moduleFunc = moduleFunc[1]
-    end
-    
-    if type(moduleFunc) == "function" then
+    if not v then
+      --
+    elseif type(v) == "function" then
+      table.insert(modules, v)
+    else
+      assert(type(v) == "table")
+      local moduleFunc, successiveInits = v[1], {unpack(v, 2)}
       table.insert(modules, moduleFunc)
-    end
-    
-    if type(moduleInitFunc) == "function" then
-      table.insert(awaitingInit, moduleInitFunc)
+      
+      for i,v in ipairs(successiveInits) do
+        assert(type(v) == "function", "Expected successive inits value to be a function, got "..type(v).." instead")
+        local t = awaitingInit[i]
+        if not t then t = {}; awaitingInit[i] = t end
+        table.insert(t, v)
+      end
+
     end
   end
   
@@ -200,10 +205,12 @@ local function loadModules()
   print("Initializing "..#awaitingInit.." modules")
   
   for i,v in ipairs(awaitingInit) do
-    local success, retval = xpcall(v, debug.traceback)
-    if not success then
-      dumpError(tostring(success)..":::"..tostring(retval))
-      error("Failed to load a module")
+    for ii, iv in ipairs(v) do
+      local success, retval = xpcall(iv, debug.traceback)
+      if not success then
+        dumpError(tostring(success)..":::"..tostring(retval))
+        error("Failed to load a module")
+      end
     end
   end
   

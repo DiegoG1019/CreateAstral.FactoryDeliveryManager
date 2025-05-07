@@ -7,16 +7,7 @@ local energyStorage;
 local fluidStorage;
 local spreadPosting = {}
 
-FactoryDelivery.AstralNetHandlers["FactoryOutput/queryItems"] = {}
-FactoryDelivery.AstralNetHandlers["FactoryOutput/queryFluids"] = {}
-FactoryDelivery.AstralNetHandlers["FactoryOutput/queryEnergy"] = {}
-
 local placedOrders = {}
-
-settings.define("factory.executeOrderSignal", {
-  ["type"] = "string",
-  ["description"] = "The side from which the computer will expect a signal to start calculating and shipping orders"
-})
 
 settings.define("factory.outputInventory", {
   ["type"] = "string",
@@ -33,43 +24,21 @@ settings.save()
 local outputInventory = settings.get("factory.outputInventory")
 local outputFluid = settings.get("factory.outputFluid")
 
---assert(executeOrderSignal, "Factory Output Module cannot initialize if the setting 'factory.executeOrderSignal' is not set")
+local itemsOutbuffer, fluidsOutbuffer, energyOutbuffer;
+
 assert(outputInventory, "Factory Output Module cannot initialize if the setting 'factory.outputInventory' is not set")
 assert(outputFluid, "Factory Output Module cannot initialize if the setting 'factory.outputFluid' is not set")
 
-FactoryDelivery.AstralNetHandlers["FactoryOutput/orderItems"] = function(sender, itemsList)
-
-  if type(itemsList) ~= "table" then return nil, 400 end
-  if not itemsList.items and not itemsList.fluids then return nil, 400 end
-
-  placedOrders[sender] = itemsList
-  return nil, 202
-
--- the recipient factory is allowed to assume their request can be honored. Otherwise we'd need to get 
--- funky with the logistics of what's the total amount at the time the train arrives and then broadcast back
--- and whatnot
-
--- Factories need to continually make requests -- If a request has not yet been fulfilled
--- (The train hasn't picked up anything) then the request will be overwritten
--- other factories should place new orders around the same time the train delivers their goods
-
-end
-
-FactoryDelivery.AstralNetHandlers["FactoryOutput/queryInbound"] = function(sender)
-  local res = spreadPosting[sender]
-  if not res then return nil, 404 else return res, 200 end
-end
-
 local function setItems(items)
-  FactoryDelivery.AstralNetHandlers["FactoryOutput/queryItems"] = items
+  itemsOutbuffer = items
 end
 
 local function setFluids(fluids)
-  FactoryDelivery.AstralNetHandlers["FactoryOutput/queryFluids"] = fluids;
+  fluidsOutbuffer = fluids;
 end
 
 local function setEnergy(energy)
-  FactoryDelivery.AstralNetHandlers["FactoryOutput/queryEnergy"] = energy;
+  energyOutbuffer = energy;
 end
 
 local function readItems() 
@@ -163,11 +132,12 @@ local function shipItems()
   if (os.clock() - lastShipped) < 2 then
     return
   end
-
   lastShipped = os.clock()
+
   local orders = placedOrders
   placedOrders = {}
 
+  reloadPeripherals()
   readItems()
 
   -- We graph who needs what
@@ -191,11 +161,11 @@ local function shipItems()
     }
 
     if order.items then
-      prepareProductsForShipping(order.items, requester, totalOutput.items, FactoryDelivery.AstralNetHandlers["FactoryOutput/queryItems"], spreadPosting[requester].items, finalizedList.items)
+      prepareProductsForShipping(order.items, requester, totalOutput.items, AstralNet.RequestHandlers["FactoryOutput/queryItems"], spreadPosting[requester].items, finalizedList.items)
     end
 
     if order.fluids then
-      prepareProductsForShipping(order.fluids, requester, totalOutput.fluids, FactoryDelivery.AstralNetHandlers["FactoryOutput/queryFluids"], spreadPosting[requester].fluids, finalizedList.fluids)
+      prepareProductsForShipping(order.fluids, requester, totalOutput.fluids, AstralNet.RequestHandlers["FactoryOutput/queryFluids"], spreadPosting[requester].fluids, finalizedList.fluids)
     end
 
   end
@@ -203,7 +173,7 @@ local function shipItems()
   -- Now we take the total of each product and broadcast how much each requester can take
     -- To do this, we take the total from the reading then take the spreadPosting table and go through each requester, and check on the product output for the amount of requests, then we put that amount into the broadcast for each requester
 
-  local itemReadings = FactoryDelivery.AstralNetHandlers["FactoryOutput/queryItems"]
+  local itemReadings = AstralNet.RequestHandlers["FactoryOutput/queryItems"]
   for item, requesterTable in pairs(totalOutput.items) do
     local totalItems = itemReadings[item] or 0
     local spread = totalItems / #requesterTable
@@ -212,7 +182,7 @@ local function shipItems()
     end
   end
 
-  local fluidReadings = FactoryDelivery.AstralNetHandlers["FactoryOutput/queryFluids"]
+  local fluidReadings = AstralNet.RequestHandlers["FactoryOutput/queryFluids"]
   for fluid, requesterTable in pairs(totalOutput.fluids) do
     local totalFluids = fluidReadings[fluid] or 0
     local spread = totalFluids / #requesterTable
@@ -249,25 +219,53 @@ local function shipItems()
 
 end
 
-local timerId
-return function(event, ...)
-  if event == "timer" then
-    local ev_timerId = ...
-    if ev_timerId ~= timerId then return false end
+local function orderItemsHandler(sender, itemsList)
 
-    timerId = os.startTimer(20)
-    reloadPeripherals()
-    readItems()
-    return true
+  if type(itemsList) ~= "table" then return nil, 400 end
+  if not itemsList.items and not itemsList.fluids then return nil, 400 end
 
-  elseif event == "peripheral"  then
-    local side = ...
-    if side == outputInventory or side == outputFluid then
-      shipItems()
-      --return true -- We need to preserve the event for the next 
-    end
-  end
+  placedOrders[sender] = itemsList
+  return nil, 202
+
+-- the recipient factory is allowed to assume their request can be honored. Otherwise we'd need to get 
+-- funky with the logistics of what's the total amount at the time the train arrives and then broadcast back
+-- and whatnot
+
+-- Factories need to continually make requests -- If a request has not yet been fulfilled
+-- (The train hasn't picked up anything) then the request will be overwritten
+-- other factories should place new orders around the same time the train delivers their goods
+
 end
 
--- Need to include the part where it actually pushes the items to the output
--- Need to graph out the outbound fluids as well
+local function queryInboundHandler(sender)
+  local res = spreadPosting[sender]
+  if not res then return nil, 404 else return res, 200 end
+end
+
+reloadPeripherals()
+readItems()
+
+return 
+{
+  function(event, ...)
+    if event == "peripheral" then
+      local side = ...
+      if side == outputInventory or side == outputFluid then
+        shipItems()
+      end
+    end
+  end,
+
+  function ()
+    local factoryOutputProtocol = "factory-output"
+    AstralNet.AddProtocol(factoryOutputProtocol)
+
+    AstralNet.AddHandler(factoryOutputProtocol, "queryItems", function() return itemsOutbuffer, 200 end)
+    AstralNet.AddHandler(factoryOutputProtocol, "queryFluids", function() return fluidsOutbuffer, 200 end)
+    AstralNet.AddHandler(factoryOutputProtocol, "queryEnergy", function() return energyOutbuffer, 200 end)
+    
+    AstralNet.AddHandler(factoryOutputProtocol, "orderItems", orderItemsHandler)
+    AstralNet.AddHandler(factoryOutputProtocol, "queryInbound", queryInboundHandler)
+  end
+  
+}
