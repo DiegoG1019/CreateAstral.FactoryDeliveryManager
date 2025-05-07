@@ -17,7 +17,6 @@ function AstralNet.AddProtocol(protocolName, messageInterceptor, responseProtoco
   assert(type(protocolName) == "string", "Invalid argument #1, protocolName is expected to be a non-nil string")
   assert(type(messageInterceptor) == "function" or type(messageInterceptor) == "nil", "Invalid argument #2, messageInterceptor is expected to be nil or a function")
   assert(type(responseProtocolName) == "string" or type(responseProtocolName) == "nil", "Invalid argument #3, responseProtocolName is expected to be nil or a string")
-  assert(protocolName ~= "astralnet-query", "Cannot register a new protocol named as the default protocol")
   assert(not protocolHandlers[protocolName], "Cannot register a new protocol named "..protocolName.." as one already exists")
 
   local t = {}
