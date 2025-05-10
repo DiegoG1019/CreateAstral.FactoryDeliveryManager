@@ -196,7 +196,7 @@ local function loadModules()
       for i,v in ipairs(successiveInits) do
         assert(type(v) == "function", "Expected successive inits value to be a function, got "..type(v).." instead")
         local t = awaitingInit[i]
-        if not t then t = {}; [i] = t end
+        if not t then t = {}; awaitingInit[i] = t end
         table.insert(t, v)
       end
 
@@ -226,8 +226,6 @@ loadModules()
 
 local timerId = os.startTimer(60)
 
-term.clear()
-term.setCursorPos(1, 1)
 while true do
   local event = { os.pullEvent() }
   
