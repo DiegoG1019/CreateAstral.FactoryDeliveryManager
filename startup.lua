@@ -3,6 +3,18 @@ local function print(...)
 end
 
 do
+  local monitor = peripheral.find("monitor")
+  if monitor then
+    term.redirect(monitor)
+  end
+end
+
+do
+  local m = peripheral.find("modem", function(name, modem) if modem.isWireless() then rednet.open(name) return true end return false end)
+  assert(m, "This computer does not have a wireless modem attached")
+end
+
+do
   
   local hasFailed = settings.get("factoryDelivery.failed")
   
@@ -190,16 +202,13 @@ local function loadModules()
       table.insert(modules, v)
     else
       assert(type(v) == "table")
-      local moduleFunc, successiveInits = v[1], {unpack(v, 2)}
+      local moduleFunc, init = v[1], v[2]
+      assert(type(moduleFunc) == "function")
+      assert(type(init) == "function" or not init)
       table.insert(modules, moduleFunc)
-      
-      for i,v in ipairs(successiveInits) do
-        assert(type(v) == "function", "Expected successive inits value to be a function, got "..type(v).." instead")
-        local t = awaitingInit[i]
-        if not t then t = {}; awaitingInit[i] = t end
-        table.insert(t, v)
+      if init then
+        table.insert(awaitingInit, init)
       end
-
     end
   end
   
