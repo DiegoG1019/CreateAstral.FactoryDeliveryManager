@@ -1,3 +1,7 @@
+local function print(...)
+  _G.print("Startup::", ...)
+end
+
 do
   
   local hasFailed = settings.get("factoryDelivery.failed")
@@ -223,6 +227,8 @@ loadModules()
 
 local timerId = os.startTimer(60)
 
+term.clear()
+term.setCursorPos(1, 1)
 while true do
   local event = { os.pullEvent() }
   

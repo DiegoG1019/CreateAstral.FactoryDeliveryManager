@@ -1,3 +1,7 @@
+local function print(...)
+  _G.print("Factory_Output::", ...)
+end
+
 if pocket then return end
 
 print("Initializing Factory Output Module")
@@ -29,6 +33,9 @@ local itemsOutbuffer, fluidsOutbuffer, energyOutbuffer;
 assert(outputInventory, "Factory Output Module cannot initialize if the setting 'factory.outputInventory' is not set")
 assert(outputFluid, "Factory Output Module cannot initialize if the setting 'factory.outputFluid' is not set")
 
+print("outputInventory: ", outputInventory)
+print("outputFluid: ", outputFluid)
+
 local function setItems(items)
   itemsOutbuffer = items
 end
@@ -42,6 +49,7 @@ local function setEnergy(energy)
 end
 
 local function readItems() 
+  print("Reading items")
   local items = {}
   for i, inv in ipairs(inventories) do
     for slot, item in ipairs(inv.list()) do
@@ -49,7 +57,8 @@ local function readItems()
       items[item.name] = itemc + item.count
     end
   end
-  
+
+  print("Reading fluids")
   local fluids = {}
   for i, storage in ipairs(fluidStorage) do
     for j, tank in ipairs(storage.tanks()) do
@@ -60,6 +69,7 @@ local function readItems()
     end
   end
   
+  print("Reading energy")
   local energy = {}
   local tce = 0
   local tme = 0
@@ -70,12 +80,14 @@ local function readItems()
   energy.TotalCurrentEnergy = tce
   energy.TotalMaxEnergy = tme
   
+  print("Posting results")
   setItems(items)
   setFluids(fluids)
   setEnergy(energy)
 end
 
 local function reloadPeripherals()
+  print("Reloading peripherals")
   inventories = {}
   energyStorage = {}
   fluidStorage = {}
@@ -84,14 +96,17 @@ local function reloadPeripherals()
     if v ~= outputInventory and v ~= outputFluid then
       local inv = assert(peripheral.wrap(v))
       if inv.getItemDetail then 
+        print("Found inventory:", i)
         table.insert(inventories, inv)
       end
       
       if inv.getEnergy then
+        print("Found energy sensor:", i)
         table.insert(energyStorage, inv)
       end
       
       if inv.tanks then
+        print("Found fluid storage:", i)
         table.insert(fluidStorage, inv)
       end
     end
@@ -101,7 +116,7 @@ end
 
 local lastShipped = 0
 
-local function broadcastProdocuts(productList, spreadPosting)
+local function broadcastProducts(productList, spreadPosting)
 
 end
 
@@ -129,11 +144,13 @@ local function prepareProductsForShipping(productList, requester, productOutput,
 end
 
 local function shipItems()
+  
   if (os.clock() - lastShipped) < 2 then
     return
   end
   lastShipped = os.clock()
 
+  print("Shipping items")
   local orders = placedOrders
   placedOrders = {}
 
@@ -153,6 +170,7 @@ local function shipItems()
     ["fluids"] = {}
   }
 
+  print("Sorting out orders and deliveries")
   for requester, order in pairs(placedOrders) do
 
     spreadPosting[requester] = {
@@ -160,12 +178,14 @@ local function shipItems()
       ["fluids"] = {}
     }
 
+    print("Preparing products for shipping to ", requester)
+
     if order.items then
-      prepareProductsForShipping(order.items, requester, totalOutput.items, AstralNet.RequestHandlers["FactoryOutput/queryItems"], spreadPosting[requester].items, finalizedList.items)
+      prepareProductsForShipping(order.items, requester, totalOutput.items, itemsOutbuffer, spreadPosting[requester].items, finalizedList.items)
     end
 
     if order.fluids then
-      prepareProductsForShipping(order.fluids, requester, totalOutput.fluids, AstralNet.RequestHandlers["FactoryOutput/queryFluids"], spreadPosting[requester].fluids, finalizedList.fluids)
+      prepareProductsForShipping(order.fluids, requester, totalOutput.fluids, fluidsOutbuffer, spreadPosting[requester].fluids, finalizedList.fluids)
     end
 
   end
@@ -173,7 +193,9 @@ local function shipItems()
   -- Now we take the total of each product and broadcast how much each requester can take
     -- To do this, we take the total from the reading then take the spreadPosting table and go through each requester, and check on the product output for the amount of requests, then we put that amount into the broadcast for each requester
 
-  local itemReadings = AstralNet.RequestHandlers["FactoryOutput/queryItems"]
+  print("Sorting out product postings for each requester")
+
+  local itemReadings = itemsOutbuffer
   for item, requesterTable in pairs(totalOutput.items) do
     local totalItems = itemReadings[item] or 0
     local spread = totalItems / #requesterTable
@@ -182,7 +204,7 @@ local function shipItems()
     end
   end
 
-  local fluidReadings = AstralNet.RequestHandlers["FactoryOutput/queryFluids"]
+  local fluidReadings = fluidsOutbuffer
   for fluid, requesterTable in pairs(totalOutput.fluids) do
     local totalFluids = fluidReadings[fluid] or 0
     local spread = totalFluids / #requesterTable
@@ -192,9 +214,10 @@ local function shipItems()
   end
 
   -- After, we push out the entirety of only the requested products out
-
+  print("Pushing out products")
   for item, enabled in pairs(finalizedList.items) do
     if enabled then
+      print("\tPushing out ", item)
       for i, inv in ipairs(inventories) do
         for slot, stored in ipairs(inv.list()) do
           if stored.name == item then
@@ -224,6 +247,7 @@ local function orderItemsHandler(sender, itemsList)
   if type(itemsList) ~= "table" then return nil, 400 end
   if not itemsList.items and not itemsList.fluids then return nil, 400 end
 
+  print("Receiving new product order from " .. tostring(sender) .. " with " .. tostring(#itemsList) .. "items")
   placedOrders[sender] = itemsList
   return nil, 202
 
@@ -249,8 +273,10 @@ return
 {
   function(event, ...)
     if event == "peripheral" then
+      print("Peripheral connection signal received")
       local side = ...
       if side == outputInventory or side == outputFluid then
+        print("Peripheral connection is from an output peripheral")
         shipItems()
       end
     end
