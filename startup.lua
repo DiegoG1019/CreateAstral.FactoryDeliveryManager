@@ -19,6 +19,7 @@ do
   
   if hasFailed then
     print("Defaulting to original startup.lua as previous one failed")
+	os.sleep(3)
   end
   
 end
@@ -185,9 +186,7 @@ local function loadModules()
   
   for i,v in ipairs(moduleInfo) do
     
-    if not v then
-      --
-    elseif type(v) == "function" then
+    if type(v) == "function" then
       table.insert(modules, v)
     else
       assert(type(v) == "table")
@@ -197,7 +196,7 @@ local function loadModules()
       for i,v in ipairs(successiveInits) do
         assert(type(v) == "function", "Expected successive inits value to be a function, got "..type(v).." instead")
         local t = awaitingInit[i]
-        if not t then t = {}; awaitingInit[i] = t end
+        if not t then t = {}; [i] = t end
         table.insert(t, v)
       end
 
@@ -206,10 +205,10 @@ local function loadModules()
   
   print("Registered "..#modules.." module listeners")
   
-  print("Initializing "..#awaitingInit.." modules")
-  
-  for i,v in ipairs(awaitingInit) do
-    for ii, iv in ipairs(v) do
+  for i,v in pairs(awaitingInit) do
+	print("Initializing module layer "..i)
+    for ii, iv in pairs(v) do
+	  print("Executing init sequence "..ii.." in layer "..i)
       local success, retval = xpcall(iv, debug.traceback)
       if not success then
         dumpError(tostring(success)..":::"..tostring(retval))
