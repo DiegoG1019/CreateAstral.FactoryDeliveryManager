@@ -61,8 +61,8 @@ local function readItems()
   print("Reading fluids")
   local fluids = {}
   for i, storage in ipairs(fluidStorage) do
-    for j, tank in ipairs(storage.tanks()) do
-      if tank.name ~= "minecraft:empty" then
+    for j, tank in pairs(storage.tanks()) do
+      if tank and tank.name and tank.name ~= "minecraft:empty" then
         local fluidc = fluids[tank.name] or 0
         fluids[tank.name] = fluidc + (tank.amount or 0)
       end
